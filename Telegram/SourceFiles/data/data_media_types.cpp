@@ -34,6 +34,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/view/media/history_view_service_box.h"
 #include "history/view/media/history_view_story_mention.h"
 #include "history/view/media/history_view_premium_gift.h"
+#include "history/view/media/history_view_unique_gift.h"
 #include "history/view/media/history_view_userpic_suggestion.h"
 #include "dialogs/ui/dialogs_message_view.h"
 #include "ui/image/image.h"
@@ -551,6 +552,10 @@ DocumentData *Media::document() const {
 	return nullptr;
 }
 
+bool Media::hasQualitiesList() const {
+	return false;
+}
+
 PhotoData *Media::photo() const {
 	return nullptr;
 }
@@ -576,6 +581,10 @@ GameData *Media::game() const {
 }
 
 const Invoice *Media::invoice() const {
+	return nullptr;
+}
+
+const GiftCode *Media::gift() const {
 	return nullptr;
 }
 
@@ -960,12 +969,14 @@ MediaFile::MediaFile(
 	not_null<HistoryItem*> parent,
 	not_null<DocumentData*> document,
 	bool skipPremiumEffect,
+	bool hasQualitiesList,
 	bool spoiler,
 	crl::time ttlSeconds)
 : Media(parent)
 , _document(document)
 , _emoji(document->sticker() ? document->sticker()->alt : QString())
 , _skipPremiumEffect(skipPremiumEffect)
+, _hasQualitiesList(hasQualitiesList)
 , _spoiler(spoiler)
 , _ttlSeconds(ttlSeconds) {
 	parent->history()->owner().registerDocumentItem(_document, parent);
@@ -995,12 +1006,17 @@ std::unique_ptr<Media> MediaFile::clone(not_null<HistoryItem*> parent) {
 		parent,
 		_document,
 		!_document->session().premium(),
+		_hasQualitiesList,
 		_spoiler,
 		_ttlSeconds);
 }
 
 DocumentData *MediaFile::document() const {
 	return _document;
+}
+
+bool MediaFile::hasQualitiesList() const {
+	return _hasQualitiesList;
 }
 
 bool MediaFile::uploading() const {
@@ -2331,8 +2347,8 @@ not_null<PeerData*> MediaGiftBox::from() const {
 	return _from;
 }
 
-const GiftCode &MediaGiftBox::data() const {
-	return _data;
+const GiftCode *MediaGiftBox::gift() const {
+	return &_data;
 }
 
 TextWithEntities MediaGiftBox::notificationText() const {
@@ -2359,6 +2375,16 @@ std::unique_ptr<HistoryView::Media> MediaGiftBox::createView(
 		not_null<HistoryView::Element*> message,
 		not_null<HistoryItem*> realParent,
 		HistoryView::Element *replacing) {
+	if (const auto raw = _data.unique.get()) {
+		return std::make_unique<HistoryView::MediaGeneric>(
+			message,
+			HistoryView::GenerateUniqueGiftMedia(message, replacing, raw),
+			HistoryView::MediaGenericDescriptor{
+				.maxWidth = st::msgServiceGiftBoxSize.width(),
+				.paintBg = HistoryView::UniqueGiftBg(message, raw),
+				.service = true,
+			});
+	}
 	return std::make_unique<HistoryView::ServiceBox>(
 		message,
 		std::make_unique<HistoryView::PremiumGift>(message, this));

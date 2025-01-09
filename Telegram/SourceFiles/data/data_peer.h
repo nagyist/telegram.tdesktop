@@ -23,6 +23,7 @@ enum class ChatRestriction;
 
 namespace Ui {
 class EmptyUserpic;
+struct BotVerifyDetails;
 } // namespace Ui
 
 namespace Main {
@@ -227,10 +228,13 @@ public:
 	[[nodiscard]] bool isForum() const;
 	[[nodiscard]] bool isGigagroup() const;
 	[[nodiscard]] bool isRepliesChat() const;
+	[[nodiscard]] bool isVerifyCodes() const;
 	[[nodiscard]] bool sharedMediaInfo() const;
 	[[nodiscard]] bool savedSublistsInfo() const;
 	[[nodiscard]] bool hasStoriesHidden() const;
 	void setStoriesHidden(bool hidden);
+
+	[[nodiscard]] Ui::BotVerifyDetails *botVerifyDetails() const;
 
 	[[nodiscard]] bool isNotificationsUser() const {
 		return (id == peerFromUser(333000))
@@ -520,7 +524,7 @@ private:
 	base::flat_set<QChar> _nameFirstLetters;
 
 	DocumentId _emojiStatusId = 0;
-	uint64 _backgroundEmojiId = 0;
+	DocumentId _backgroundEmojiId = 0;
 	crl::time _lastFullUpdate = 0;
 
 	QString _name;

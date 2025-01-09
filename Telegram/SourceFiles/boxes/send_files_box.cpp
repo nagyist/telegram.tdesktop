@@ -220,7 +220,7 @@ SendFilesCheck DefaultCheckForPeer(
 }
 
 SendFilesCheck DefaultCheckForPeer(
-		std::shared_ptr<Ui::Show> show,
+		std::shared_ptr<ChatHelpers::Show> show,
 		not_null<PeerData*> peer) {
 	return [=](
 			const Ui::PreparedFile &file,
@@ -228,7 +228,7 @@ SendFilesCheck DefaultCheckForPeer(
 			bool silent) {
 		const auto error = Data::FileRestrictionError(peer, file, compress);
 		if (error && !silent) {
-			show->showToast(*error);
+			Data::ShowSendErrorToast(show, peer, error);
 		}
 		return !error.has_value();
 	};
@@ -1267,13 +1267,16 @@ void SendFilesBox::setupCaption() {
 			: (_limits & SendFilesAllow::EmojiWithoutPremium);
 	};
 	const auto show = _show;
-	InitMessageFieldHandlers(
-		&show->session(),
-		show,
-		_caption.data(),
-		[=] { return show->paused(Window::GifPauseReason::Layer); },
-		allow,
-		&_st.files.caption);
+	InitMessageFieldHandlers({
+		.session = &show->session(),
+		.show = show,
+		.field = _caption.data(),
+		.customEmojiPaused = [=] {
+			return show->paused(Window::GifPauseReason::Layer);
+		},
+		.allowPremiumEmoji = allow,
+		.fieldStyle = &_st.files.caption,
+	});
 	setupCaptionAutocomplete();
 	Ui::Emoji::SuggestionsController::Init(
 		getDelegate()->outerContainer(),

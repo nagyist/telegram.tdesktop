@@ -143,6 +143,7 @@ struct InvoicePremiumGiftCodeGiveaway {
 struct InvoicePremiumGiftCodeUsers {
 	std::vector<not_null<UserData*>> users;
 	ChannelData *boostPeer = nullptr;
+	TextWithEntities message;
 };
 
 struct InvoicePremiumGiftCode {
@@ -169,6 +170,17 @@ struct InvoiceCredits {
 	uint64 amount = 0;
 	bool extended = false;
 	PeerId giftPeerId = PeerId(0);
+	int subscriptionPeriod = 0;
+};
+
+struct InvoiceStarGift {
+	uint64 giftId = 0;
+	uint64 randomId = 0;
+	TextWithEntities message;
+	not_null<UserData*> user;
+	int limitedCount = 0;
+	bool anonymous = false;
+	bool upgraded = false;
 };
 
 struct InvoiceId {
@@ -176,7 +188,8 @@ struct InvoiceId {
 		InvoiceMessage,
 		InvoiceSlug,
 		InvoicePremiumGiftCode,
-		InvoiceCredits> value;
+		InvoiceCredits,
+		InvoiceStarGift> value;
 };
 
 struct CreditsFormData {
@@ -188,6 +201,8 @@ struct CreditsFormData {
 	PhotoData *photo = nullptr;
 	InvoiceCredits invoice;
 	MTPInputInvoice inputInvoice;
+	int starGiftLimitedCount = 0;
+	bool starGiftForm = false;
 };
 
 struct CreditsReceiptData {
@@ -196,7 +211,7 @@ struct CreditsReceiptData {
 	QString description;
 	PhotoData *photo = nullptr;
 	PeerId peerId = PeerId(0);
-	uint64 credits = 0;
+	StarsAmount credits;
 	TimeId date = 0;
 };
 

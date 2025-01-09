@@ -18,6 +18,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/dynamic_image.h"
 #include "ui/dynamic_thumbnails.h"
 #include "ui/painter.h"
+#include "ui/power_saving.h"
 #include "ui/rect.h"
 #include "ui/round_rect.h"
 #include "styles/style_chat.h"
@@ -73,6 +74,7 @@ MediaGeneric::MediaGeneric(
 	Fn<void(Fn<void(std::unique_ptr<Part>)>)> generate,
 	MediaGenericDescriptor &&descriptor)
 : Media(parent)
+, _paintBg(std::move(descriptor.paintBg))
 , _maxWidthCap(descriptor.maxWidth)
 , _service(descriptor.service)
 , _hideServiceText(descriptor.hideServiceText) {
@@ -109,13 +111,21 @@ QSize MediaGeneric::countOptimalSize() {
 }
 
 QSize MediaGeneric::countCurrentSize(int newWidth) {
-	return { maxWidth(), minHeight() };
+	if (newWidth > maxWidth()) {
+		newWidth = maxWidth();
+	}
+	for (auto &entry : _entries) {
+		entry.object->resizeGetHeight(newWidth);
+	}
+	return { newWidth, minHeight() };
 }
 
 void MediaGeneric::draw(Painter &p, const PaintContext &context) const {
 	const auto outer = width();
 	if (outer < st::msgPadding.left() + st::msgPadding.right() + 1) {
 		return;
+	} else if (_paintBg) {
+		_paintBg(p, context);
 	} else if (_service) {
 		PainterHighQualityEnabler hq(p);
 		const auto radius = st::msgServiceGiftBoxRadius;
@@ -222,10 +232,16 @@ QMargins MediaGeneric::inBubblePadding() const {
 MediaGenericTextPart::MediaGenericTextPart(
 	TextWithEntities text,
 	QMargins margins,
-	const base::flat_map<uint16, ClickHandlerPtr> &links)
+	const style::TextStyle &st,
+	const base::flat_map<uint16, ClickHandlerPtr> &links,
+	const std::any &context)
 : _text(st::msgMinWidth)
 , _margins(margins) {
-	_text.setMarkedText(st::defaultTextStyle, text);
+	_text.setMarkedText(
+		st,
+		text,
+		kMarkupTextOptions,
+		context);
 	for (const auto &[index, link] : links) {
 		_text.setLink(index, link);
 	}
@@ -236,20 +252,30 @@ void MediaGenericTextPart::draw(
 		not_null<const MediaGeneric*> owner,
 		const PaintContext &context,
 		int outerWidth) const {
-	const auto service = owner->service();
-	p.setPen(service
-		? context.st->msgServiceFg()
-		: context.messageStyle()->historyTextFg);
+	setupPen(p, owner, context);
 	_text.draw(p, {
 		.position = { (outerWidth - width()) / 2, _margins.top() },
 		.outerWidth = outerWidth,
 		.availableWidth = width(),
 		.align = style::al_top,
-		.palette = &(service
+		.palette = &(owner->service()
 			? context.st->serviceTextPalette()
 			: context.messageStyle()->textPalette),
+		.spoiler = Ui::Text::DefaultSpoilerCache(),
 		.now = context.now,
+		.pausedEmoji = context.paused || On(PowerSaving::kEmojiChat),
+		.pausedSpoiler = context.paused || On(PowerSaving::kChatSpoiler),
 	});
+}
+
+void MediaGenericTextPart::setupPen(
+		Painter &p,
+		not_null<const MediaGeneric*> owner,
+		const PaintContext &context) const {
+	const auto service = owner->service();
+	p.setPen(service
+		? context.st->msgServiceFg()
+		: context.messageStyle()->historyTextFg);
 }
 
 TextState MediaGenericTextPart::textState(
@@ -426,7 +452,7 @@ void StickerInBubblePart::ensureCreated(Element *replacing) const {
 			_skipTop = data.skipTop;
 			_sticker.emplace(_parent, sticker, skipPremiumEffect, replacing);
 			if (data.singleTimePlayback) {
-				_sticker->setDiceIndex(info->alt, 1);
+				_sticker->setPlayingOnce(true);
 			}
 			_sticker->initSize(data.size);
 			_sticker->setCustomCachingTag(data.cacheTag);

@@ -390,6 +390,11 @@ QByteArray SerializeMessage(
 			push("height", image.height);
 		}
 	};
+	const auto pushSpoiler = [&](const auto &media) {
+		if (media.spoilered) {
+			push("media_spoiler", true);
+		}
+	};
 
 	v::match(message.action.content, [&](const ActionChatCreate &data) {
 		pushActor();
@@ -404,6 +409,7 @@ QByteArray SerializeMessage(
 		pushActor();
 		pushAction("edit_group_photo");
 		pushPhoto(data.photo.image);
+		pushSpoiler(data.photo);
 	}, [&](const ActionChatDeletePhoto &data) {
 		pushActor();
 		pushAction("delete_group_photo");
@@ -587,6 +593,7 @@ QByteArray SerializeMessage(
 		pushActor();
 		pushAction("suggest_profile_photo");
 		pushPhoto(data.photo.image);
+		pushSpoiler(data.photo);
 	}, [&](const ActionRequestedPeer &data) {
 		pushActor();
 		pushAction("requested_peer");
@@ -647,6 +654,14 @@ QByteArray SerializeMessage(
 		push("is_unclaimed", data.isUnclaimed);
 		push("giveaway_msg_id", data.giveawayMsgId);
 		push("transaction_id", data.transactionId);
+	}, [&](const ActionStarGift &data) {
+		pushActor();
+		pushAction("send_star_gift");
+		push("gift_id", data.giftId);
+		push("stars", data.stars);
+		push("is_limited", data.limited);
+		push("is_anonymous", data.anonymous);
+		pushBare("gift_text", SerializeText(context, data.text));
 	}, [](v::null_t) {});
 
 	if (v::is_null(message.action.content)) {
@@ -676,6 +691,7 @@ QByteArray SerializeMessage(
 
 	v::match(message.media.content, [&](const Photo &photo) {
 		pushPhoto(photo.image);
+		pushSpoiler(photo);
 		pushTTL();
 	}, [&](const Document &data) {
 		pushPath(data.file, "file");
@@ -710,6 +726,7 @@ QByteArray SerializeMessage(
 			push("width", data.width);
 			push("height", data.height);
 		}
+		pushSpoiler(data);
 		pushTTL();
 	}, [&](const SharedContact &data) {
 		pushBare("contact_information", SerializeObject(context, {
@@ -1457,6 +1474,7 @@ Result JsonWriter::writeDialogStart(const Data::DialogInfo &data) {
 		case Type::Unknown: return "";
 		case Type::Self: return "saved_messages";
 		case Type::Replies: return "replies";
+		case Type::VerifyCodes: return "verification_codes";
 		case Type::Personal: return "personal_chat";
 		case Type::Bot: return "bot_chat";
 		case Type::PrivateGroup: return "private_group";
@@ -1472,7 +1490,9 @@ Result JsonWriter::writeDialogStart(const Data::DialogInfo &data) {
 		? QByteArray()
 		: prepareArrayItemStart();
 	block.append(pushNesting(Context::kObject));
-	if (data.type != Type::Self && data.type != Type::Replies) {
+	if (data.type != Type::Self
+		&& data.type != Type::Replies
+		&& data.type != Type::VerifyCodes) {
 		block.append(prepareObjectItemStart("name")
 			+ StringAllowNull(data.name));
 	}

@@ -7,28 +7,24 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #pragma once
 
+#include "data/data_star_gift.h"
 #include "info/info_content_widget.h"
 
+class UserData;
 struct PeerListState;
 
-namespace Data {
-class Feed;
-} // namespace Data
+namespace Info::PeerGifts {
 
-namespace Info {
-namespace FeedProfile {
-class Channels;
-struct ChannelsState;
-} // namespace FeedProfile
+struct ListState {
+	std::vector<Data::UserStarGift> list;
+	QString offset;
+};
 
-namespace Channels {
-
-using SavedState = FeedProfile::ChannelsState;
+class InnerWidget;
 
 class Memento final : public ContentMemento {
 public:
-	explicit Memento(not_null<Controller*> controller);
-	explicit Memento(not_null<Data::Feed*> feed);
+	explicit Memento(not_null<UserData*> user);
 
 	object_ptr<ContentWidget> createWidget(
 		QWidget *parent,
@@ -37,13 +33,15 @@ public:
 
 	Section section() const override;
 
-	void setState(std::unique_ptr<SavedState> state);
-	std::unique_ptr<SavedState> state();
+	[[nodiscard]] not_null<UserData*> user() const;
+
+	void setListState(std::unique_ptr<ListState> state);
+	std::unique_ptr<ListState> listState();
 
 	~Memento();
 
 private:
-	std::unique_ptr<SavedState> _state;
+	std::unique_ptr<ListState> _listState;
 
 };
 
@@ -51,7 +49,10 @@ class Widget final : public ContentWidget {
 public:
 	Widget(
 		QWidget *parent,
-		not_null<Controller*> controller);
+		not_null<Controller*> controller,
+		not_null<UserData*> user);
+
+	[[nodiscard]] not_null<UserData*> user() const;
 
 	bool showInternal(
 		not_null<ContentMemento*> memento) override;
@@ -60,15 +61,16 @@ public:
 		const QRect &geometry,
 		not_null<Memento*> memento);
 
+	rpl::producer<QString> title() override;
+
 private:
 	void saveState(not_null<Memento*> memento);
 	void restoreState(not_null<Memento*> memento);
 
-	std::unique_ptr<ContentMemento> doCreateMemento() override;
+	std::shared_ptr<ContentMemento> doCreateMemento() override;
 
-	FeedProfile::Channels *_inner = nullptr;
+	InnerWidget *_inner = nullptr;
 
 };
 
-} // namespace Channels
-} // namespace Info
+} // namespace Info::PeerGifts

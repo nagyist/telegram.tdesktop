@@ -402,9 +402,13 @@ base::unique_qptr<Ui::PopupMenu> GifsListWidget::fillContextMenu(
 		// inline results don't have effects
 		copyDetails.effectAllowed = false;
 	}
+
+	// In case we're adding items after FillSendMenu we have
+	// to pass nullptr for showForEffect and attach selector later.
+	// Otherwise added items widths won't be respected in menu geometry.
 	SendMenu::FillSendMenu(
 		menu,
-		_show,
+		nullptr, // showForMenu
 		copyDetails,
 		SendMenu::DefaultCallback(_show, send),
 		icons);
@@ -441,6 +445,13 @@ base::unique_qptr<Ui::PopupMenu> GifsListWidget::fillContextMenu(
 			AddGifAction(std::move(callback), _show, document, icons);
 		}
 	}
+
+	SendMenu::AttachSendMenuEffect(
+		menu,
+		_show,
+		copyDetails,
+		SendMenu::DefaultCallback(_show, send));
+
 	return menu;
 }
 
@@ -888,7 +899,9 @@ void GifsListWidget::searchForGifs(const QString &query) {
 	if (!_searchBot && !_searchBotRequestId) {
 		const auto username = session().serverConfig().gifSearchUsername;
 		_searchBotRequestId = _api.request(MTPcontacts_ResolveUsername(
-			MTP_string(username)
+			MTP_flags(0),
+			MTP_string(username),
+			MTP_string()
 		)).done([=](const MTPcontacts_ResolvedPeer &result) {
 			auto &data = result.data();
 			session().data().processUsers(data.vusers());
